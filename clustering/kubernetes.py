@@ -73,6 +73,11 @@ options:
         unless using the C('insecure') option.
     default: "admin"
     aliases: ["username"]
+  user_namespace:
+    description:
+      - Default namespace used when not specified in yaml file or in inline_data
+    default: "default"
+    aliases: ["namespace"]
   insecure:
     description:
       - "Reverts the connection to using HTTP instead of HTTPS. This option should
@@ -125,6 +130,7 @@ EXAMPLES = '''
     insecure: true
     file_reference: /path/to/create_namespace.yaml
     state: present
+
 
 '''
 
@@ -205,7 +211,8 @@ KIND_URL = {
     "resourcequota": "/api/v1/namespaces/{namespace}/resourcequotas",
     "secret": "/api/v1/namespaces/{namespace}/secrets",
     "service": "/api/v1/namespaces/{namespace}/services",
-    "serviceaccount": "/api/v1/namespaces/{namespace}/serviceaccounts"
+    "serviceaccount": "/api/v1/namespaces/{namespace}/serviceaccounts",
+    "configmap": "/api/v1/namespaces/{namespace}/configmaps"
 }
 USER_AGENT = "ansible-k8s-module/0.0.1"
 
@@ -310,6 +317,7 @@ def main():
 
             url_username=dict(default="admin", aliases=["username"]),
             url_password=dict(default="", no_log=True, aliases=["password"]),
+            user_namespace=dict(default="default"),
             force_basic_auth=dict(default="yes"),
             validate_certs=dict(default=False, type='bool'),
             certificate_authority_data=dict(required=False),
@@ -332,7 +340,7 @@ def main():
     insecure = module.params.get('insecure')
     inline_data = module.params.get('inline_data')
     file_reference = module.params.get('file_reference')
-
+    user_namespace = module.params.get('user_namespace')
     if inline_data:
         if not isinstance(inline_data, dict) and not isinstance(inline_data, list):
             data = yaml.load(inline_data)
@@ -363,9 +371,8 @@ def main():
         data = [ data ]
 
     for item in data:
-        namespace = "default"
         if item and 'metadata' in item:
-            namespace = item.get('metadata', {}).get('namespace', "default")
+            namespace = item.get('metadata', {}).get('namespace', user_namespace)
             kind = item.get('kind', '').lower()
             try:
                 url = target_endpoint + KIND_URL[kind]
